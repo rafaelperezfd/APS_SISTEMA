@@ -6,10 +6,10 @@ from tkinter import messagebox
 
 # Pastas/arquivos
 APP_DIR = pathlib.Path(__file__).resolve().parent
-ARQ_USUARIOS     = APP_DIR / "users.json"        # mantém nome físico para compatibilidade
-ARQ_SUBSTANCIAS  = APP_DIR / "substances.json"   # mantém nome físico para compatibilidade
-ARQ_AMOSTRAS     = APP_DIR / "samples.json"      # mantém nome físico para compatibilidade
-ARQ_LOG          = APP_DIR / "audit_log.jsonl"   # mantém nome físico para compatibilidade
+ARQ_USUARIOS     = APP_DIR / "users.json"       
+ARQ_SUBSTANCIAS  = APP_DIR / "substances.json"   
+ARQ_AMOSTRAS     = APP_DIR / "samples.json"      
+ARQ_LOG          = APP_DIR / "audit_log.jsonl"   
 
 # Parâmetros scrypt
 SCRYPT_N, SCRYPT_R, SCRYPT_P, TAM_CHAVE = 16384, 8, 1, 64
