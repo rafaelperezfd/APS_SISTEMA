@@ -1,11 +1,4 @@
 {
   "version": 1,
-  "substances": [
-    {
-      "ID": "{id}",
-      "Nome": "{Nome}",
-      "Data:": "{Data}",
-      "Status": "{Status}"
-    }
-  ]
+  "substances": []
 }

@@ -1,4 +1,12 @@
 {
   "version": 1,
-  "users": []
+  "users": [
+    {
+      "badge_id": "admin",
+      "name": "Administrador",
+      "role": "admin",
+      "password_plain": "admin@",
+      "active": true
+    }
+  ]
 }

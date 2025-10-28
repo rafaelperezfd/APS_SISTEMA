@@ -1,0 +1,8 @@
+{"ts": "2025-10-27T21:25:25-03:00", "type": "login", "badge_id": "ADMIN001", "result": "granted"}
+{"ts": "2025-10-27T21:35:59-03:00", "type": "login", "badge_id": "0001", "result": "denied"}
+{"ts": "2025-10-27T21:36:41-03:00", "type": "login", "badge_id": "ADMIN001", "result": "granted"}
+{"ts": "2025-10-27T21:37:05-03:00", "type": "login", "badge_id": "admin", "result": "granted"}
+{"ts": "2025-10-27T21:38:09-03:00", "type": "substance_create", "id": "0001"}
+{"ts": "2025-10-27T21:38:27-03:00", "type": "substance_update", "id": "0001"}
+{"ts": "2025-10-27T21:40:01-03:00", "type": "substance_update", "id": "0001"}
+{"ts": "2025-10-27T21:41:02-03:00", "type": "substance_delete", "id": "0001"}
