@@ -1,0 +1,29 @@
+{
+  "versao": 1,
+  "usuarios": [
+    {
+      "cracha": "admin",
+      "nome": "Administrador",
+      "papel": "admin",
+      "ativo": true,
+      "senha_hash": null,
+      "senha_plana": "admin@"
+    },
+    {
+      "cracha": "002",
+      "nome": "Alvaro",
+      "papel": "user",
+      "ativo": true,
+      "senha_hash": {
+        "sal_b64": "MQmO6vBiYPVbZZ4MR8oEQw==",
+        "hash_b64": "6C9St+7BMK/RyifQx9nMROXxFo+18HbOeHAhgyTkx2nXsBFYjvPEjXdcUCcAt7cGXiBZ/V+r7cCJAgjZUact1Q==",
+        "parametros": {
+          "n": 16384,
+          "r": 8,
+          "p": 1
+        }
+      },
+      "senha_plana": null
+    }
+  ]
+}

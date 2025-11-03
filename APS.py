@@ -4,27 +4,24 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import messagebox
 
-# Pastas/arquivos
+# Caminhos dos arquivos (PT-BR)
 APP_DIR = pathlib.Path(__file__).resolve().parent
-ARQ_USUARIOS     = APP_DIR / "users.json"       
-ARQ_SUBSTANCIAS  = APP_DIR / "substances.json"   
-ARQ_AMOSTRAS     = APP_DIR / "samples.json"      
-ARQ_LOG          = APP_DIR / "audit_log.jsonl"   
+ARQ_USUARIOS     = APP_DIR / "usuarios.json"
+ARQ_SUBSTANCIAS  = APP_DIR / "substancias.json"
+ARQ_LOG          = APP_DIR / "entrada_saida.jsonl"
 
 # Parâmetros scrypt
 SCRYPT_N, SCRYPT_R, SCRYPT_P, TAM_CHAVE = 16384, 8, 1, 64
 
-def agora_iso():
+def momento():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
 def gerar_hash_scrypt(senha: str, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P):
     sal = secrets.token_bytes(16)
     dk = hashlib.scrypt(senha.encode("utf-8"), salt=sal, n=n, r=r, p=p, dklen=TAM_CHAVE)
-    return {
-        "sal_b64": base64.b64encode(sal).decode(),
-        "hash_b64": base64.b64encode(dk).decode(),
-        "parametros": {"n": n, "r": r, "p": p}
-    }
+    return {"sal_b64": base64.b64encode(sal).decode(),
+            "hash_b64": base64.b64encode(dk).decode(),
+            "parametros": {"n": n, "r": r, "p": p}}
 
 def verificar_hash_scrypt(senha: str, obj_hash: dict) -> bool:
     sal = base64.b64decode(obj_hash["sal_b64"])
@@ -47,62 +44,36 @@ def escrita_atomica(path: pathlib.Path, dados: dict):
 def carregar_json_seguro(path: pathlib.Path, obj_padrao: dict) -> dict:
     try:
         if not path.exists() or path.stat().st_size == 0:
-            escrita_atomica(path, obj_padrao)
-            return obj_padrao
+            escrita_atomica(path, obj_padrao); return obj_padrao
         with open(path, "r", encoding="utf-8") as f:
             bruto = f.read()
         if not bruto.strip():
-            escrita_atomica(path, obj_padrao)
-            return obj_padrao
+            escrita_atomica(path, obj_padrao); return obj_padrao
         dados = json.loads(bruto)
         if not isinstance(dados, dict):
             raise json.JSONDecodeError("Raiz deve ser objeto", bruto, 0)
         return dados
     except json.JSONDecodeError:
-        escrita_atomica(path, obj_padrao)
-        return obj_padrao
+        escrita_atomica(path, obj_padrao); return obj_padrao
 
 def garantir_arquivos_dados():
     if not ARQ_USUARIOS.exists():
         escrita_atomica(ARQ_USUARIOS, {"versao": 1, "usuarios": []})
     if not ARQ_SUBSTANCIAS.exists():
         escrita_atomica(ARQ_SUBSTANCIAS, {"versao": 1, "substancias": []})
-    if not ARQ_AMOSTRAS.exists():
-        escrita_atomica(ARQ_AMOSTRAS, {"versao": 1, "amostras": []})
     if not ARQ_LOG.exists():
         ARQ_LOG.touch()
 
 def salvar_json(path: pathlib.Path, dados: dict):
     escrita_atomica(path, dados)
 
-# Normalização/compatibilidade para usuários
-def _normalizar_lista_usuarios(dados: dict):
-    # aceita "usuarios" (pt) ou "users" (en)
-    lista = []
-    if "usuarios" in dados and isinstance(dados["usuarios"], list):
-        lista = dados["usuarios"]
-    elif "users" in dados and isinstance(dados["users"], list):
-        lista = dados["users"]
-    # mapear chaves para pt-BR
-    norm = []
-    for u in lista:
-        norm.append({
-            "cracha": u.get("cracha", u.get("badge_id", "")),
-            "nome": u.get("nome", u.get("name", "")),
-            "papel": u.get("papel", u.get("role", "user")),
-            "ativo": bool(u.get("ativo", u.get("active", False))),
-            "senha_hash": u.get("senha_hash", u.get("password", None)),
-            "senha_plana": u.get("senha_plana", u.get("password_plain", None)),
-        })
-    return norm
-
+# Usuários (PT-BR)
 def carregar_usuarios():
     dados = carregar_json_seguro(ARQ_USUARIOS, {"versao": 1, "usuarios": []})
-    return _normalizar_lista_usuarios(dados)
+    return list(dados.get("usuarios", []))
 
-def salvar_usuarios(usuarios_pt: list):
-    # salva em português
-    salvar_json(ARQ_USUARIOS, {"versao": 1, "usuarios": usuarios_pt})
+def salvar_usuarios(lista):
+    salvar_json(ARQ_USUARIOS, {"versao": 1, "usuarios": lista})
 
 def buscar_usuario(cracha: str):
     usuarios = carregar_usuarios()
@@ -111,7 +82,6 @@ def buscar_usuario(cracha: str):
             return u, usuarios
     return None, usuarios
 
-# Autenticação: aceita senha_hash (scrypt) e senha_plana
 def verificar_credenciais(senha_digitada: str, usuario: dict) -> bool:
     if isinstance(usuario.get("senha_hash"), dict) and "hash_b64" in usuario["senha_hash"]:
         return verificar_hash_scrypt(senha_digitada, usuario["senha_hash"])
@@ -148,13 +118,13 @@ class TelaLogin(ttk.Frame):
         usuario, _todos = buscar_usuario(cracha)
         if not usuario or not usuario.get("ativo", False):
             messagebox.showerror("Acesso negado", "Crachá não encontrado ou inativo.")
-            registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo":"login", "cracha": cracha, "resultado":"negado"})
+            registrar_evento(ARQ_LOG, {"ts": momento(), "tipo":"login", "cracha": cracha, "resultado":"negado"})
             return
         if not verificar_credenciais(senha, usuario):
             messagebox.showerror("Acesso negado", "Senha incorreta.")
-            registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo":"login", "cracha": cracha, "resultado":"negado"})
+            registrar_evento(ARQ_LOG, {"ts": momento(), "tipo":"login", "cracha": cracha, "resultado":"negado"})
             return
-        registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo":"login", "cracha": cracha, "resultado":"permitido"})
+        registrar_evento(ARQ_LOG, {"ts": momento(), "tipo":"login", "cracha": cracha, "resultado":"permitido"})
         self.ao_autenticar(usuario)
 
 class TelaUsuarios(ttk.Frame):
@@ -209,8 +179,8 @@ class TelaUsuarios(ttk.Frame):
         if not cracha or not nome:
             messagebox.showwarning("Campos", "Informe crachá e nome."); return
 
-        _, todos = buscar_usuario(cracha)
-        existente = next((u for u in todos if u["cracha"] == cracha), None)
+        usuarios = carregar_usuarios()
+        existente = next((u for u in usuarios if u["cracha"] == cracha), None)
         if existente:
             existente["nome"] = nome; existente["papel"] = papel; existente["ativo"] = ativo
             if senha:
@@ -219,16 +189,12 @@ class TelaUsuarios(ttk.Frame):
                 existente["senha_plana"] = None
         else:
             if len(senha) < 8: messagebox.showwarning("Senha", "8+ caracteres"); return
-            todos.append({
-                "cracha": cracha,
-                "nome": nome,
-                "papel": papel,
-                "ativo": ativo,
-                "senha_hash": gerar_hash_scrypt(senha),
-                "senha_plana": None
+            usuarios.append({
+                "cracha": cracha, "nome": nome, "papel": papel, "ativo": ativo,
+                "senha_hash": gerar_hash_scrypt(senha), "senha_plana": None
             })
-        salvar_usuarios(todos)
-        registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo":"usuario_salvar", "cracha": cracha})
+        salvar_usuarios(usuarios)
+        registrar_evento(ARQ_LOG, {"ts": momento(), "tipo":"usuario_salvar", "cracha": cracha})
         self._recarregar(); self._limpar_form()
 
     def _deletar_usuario(self):
@@ -237,13 +203,12 @@ class TelaUsuarios(ttk.Frame):
         usuarios = carregar_usuarios()
         usuarios = [u for u in usuarios if u["cracha"] != cracha]
         salvar_usuarios(usuarios)
-        registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo":"usuario_deletar", "cracha": cracha})
+        registrar_evento(ARQ_LOG, {"ts": momento(), "tipo":"usuario_deletar", "cracha": cracha})
         self._recarregar(); self._limpar_form()
 
-class TelaSubstancias(ttk.Frame):
+class TelaSubstanciasAdmin(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, padding=10)
-        # Variáveis do formulário
         self.var_id     = tk.StringVar()
         self.var_nome   = tk.StringVar()
         self.var_data   = tk.StringVar()
@@ -264,24 +229,20 @@ class TelaSubstancias(ttk.Frame):
         ttk.Label(topo, text="Status").grid(row=1, column=2, sticky=W, padx=6, pady=4)
         ttk.Entry(topo, textvariable=self.var_status, width=24).grid(row=1, column=3, sticky=EW, padx=6)
 
-        botoes = ttk.Frame(topo); botoes.grid(row=2, column=0, columnspan=4, sticky=W, pady=8)
-        ttk.Button(botoes, text="Salvar/Atualizar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=4)
-        ttk.Button(botoes, text="Deletar", bootstyle=DANGER, command=self._deletar).pack(side=LEFT, padx=4)
-        ttk.Button(botoes, text="Limpar", bootstyle=SECONDARY, command=self._limpar).pack(side=LEFT, padx=4)
-        ttk.Button(botoes, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(side=LEFT, padx=4)
+        acoes = ttk.Frame(topo); acoes.grid(row=2, column=0, columnspan=4, sticky=W, pady=8)
+        ttk.Button(acoes, text="Salvar/Atualizar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=4)
+        ttk.Button(acoes, text="Deletar", bootstyle=DANGER, command=self._deletar).pack(side=LEFT, padx=4)
+        ttk.Button(acoes, text="Limpar", bootstyle=SECONDARY, command=self._limpar).pack(side=LEFT, padx=4)
+        ttk.Button(acoes, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(side=LEFT, padx=4)
 
         for c in (1,3):
             topo.columnconfigure(c, weight=1)
 
         self.tabela = ttk.Treeview(self, columns=("id","nome","data","status"), show="headings", bootstyle=INFO, height=12)
-        self.tabela.heading("id", text="ID")
-        self.tabela.heading("nome", text="Nome")
-        self.tabela.heading("data", text="Data")
-        self.tabela.heading("status", text="Status")
-        self.tabela.column("id", width=140)
-        self.tabela.column("nome", width=260)
-        self.tabela.column("data", width=160)
-        self.tabela.column("status", width=160)
+        self.tabela.heading("id", text="ID"); self.tabela.heading("nome", text="Nome")
+        self.tabela.heading("data", text="Data"); self.tabela.heading("status", text="Status")
+        self.tabela.column("id", width=140); self.tabela.column("nome", width=260)
+        self.tabela.column("data", width=160); self.tabela.column("status", width=160)
         self.tabela.pack(fill=BOTH, expand=YES)
         self.tabela.bind("<<TreeviewSelect>>", self._selecionar)
 
@@ -291,8 +252,7 @@ class TelaSubstancias(ttk.Frame):
         for i in self.tabela.get_children():
             self.tabela.delete(i)
         dados = carregar_json_seguro(ARQ_SUBSTANCIAS, {"versao":1, "substancias":[]})
-        lista = dados.get("substancias", dados.get("substances", []))
-        for s in lista:
+        for s in dados.get("substancias", []):
             self.tabela.insert("", tk.END, values=(s.get("id",""), s.get("nome",""), s.get("data",""), s.get("status","")))
 
     def _selecionar(self, _):
@@ -305,66 +265,99 @@ class TelaSubstancias(ttk.Frame):
         self.var_id.set(""); self.var_nome.set(""); self.var_data.set(""); self.var_status.set("")
 
     def _salvar(self):
-        sid = self.var_id.get().strip()
-        nome = self.var_nome.get().strip()
-        data_txt = self.var_data.get().strip()
-        status = self.var_status.get().strip()
-
+        sid = self.var_id.get().strip(); nome = self.var_nome.get().strip()
+        data_txt = self.var_data.get().strip(); status = self.var_status.get().strip()
         if not sid or not nome:
-            messagebox.showwarning("Campos", "Informe ao menos ID e Nome.")
-            return
+            messagebox.showwarning("Campos", "Informe ao menos ID e Nome."); return
         if not data_txt:
-            data_txt = agora_iso().split("T")[0]
+            data_txt = momento().split("T")[0]
 
         store = carregar_json_seguro(ARQ_SUBSTANCIAS, {"versao":1, "substancias":[]})
-        lista = store.get("substancias", store.get("substances", []))
+        lista = store.get("substancias", [])
         existente = next((s for s in lista if s.get("id") == sid), None)
         if existente:
             existente["nome"] = nome; existente["data"] = data_txt; existente["status"] = status
             acao = "substancia_atualizar"
         else:
             lista.append({"id": sid, "nome": nome, "data": data_txt, "status": status})
-            # se chave antiga existir, mantém compatibilidade ao salvar
-            if "substances" in store and "substancias" not in store:
-                store["substances"] = lista
-            else:
-                store["substancias"] = lista
+            store["substancias"] = lista
             acao = "substancia_criar"
 
-        # garantir chave preferida em pt-BR
-        if "substancias" not in store:
-            store["substancias"] = lista
-        if "substances" in store:
-            store.pop("substances", None)
-
         salvar_json(ARQ_SUBSTANCIAS, store)
-        registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo": acao, "id": sid})
+        registrar_evento(ARQ_LOG, {"ts": momento(), "tipo": acao, "id": sid})
         self._carregar(); self._limpar()
 
     def _deletar(self):
         sid = self.var_id.get().strip()
         if not sid:
-            messagebox.showwarning("Seleção", "Selecione uma substância (ou informe o ID).")
-            return
+            messagebox.showwarning("Seleção", "Selecione uma substância (ou informe o ID)."); return
         if not messagebox.askyesno("Confirmar", f"Excluir substância '{sid}'?"):
             return
         store = carregar_json_seguro(ARQ_SUBSTANCIAS, {"versao":1, "substancias":[]})
-        lista = store.get("substancias", store.get("substances", []))
+        lista = store.get("substancias", [])
         novo = [s for s in lista if s.get("id") != sid]
         if len(novo) == len(lista):
-            messagebox.showinfo("Info", "ID não encontrado.")
-            return
-        # aplicar na chave preferida
+            messagebox.showinfo("Info", "ID não encontrado."); return
         store["substancias"] = novo
-        store.pop("substances", None)
         salvar_json(ARQ_SUBSTANCIAS, store)
-        registrar_evento(ARQ_LOG, {"ts": agora_iso(), "tipo": "substancia_deletar", "id": sid})
+        registrar_evento(ARQ_LOG, {"ts": momento(), "tipo": "substancia_deletar", "id": sid})
         self._carregar(); self._limpar()
 
-class TelaAmostras(ttk.Frame):
+class TelaSubstanciasLeitura(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, padding=10)
-        ttk.Label(self, text="Visualização de Amostras (somente leitura)").pack(anchor=W)
+        self.tabela = ttk.Treeview(self, columns=("id","nome","data","status"), show="headings", bootstyle=INFO, height=14)
+        self.tabela.heading("id", text="ID"); self.tabela.heading("nome", text="Nome")
+        self.tabela.heading("data", text="Data"); self.tabela.heading("status", text="Status")
+        self.tabela.column("id", width=140); self.tabela.column("nome", width=260)
+        self.tabela.column("data", width=160); self.tabela.column("status", width=160)
+        self.tabela.pack(fill=BOTH, expand=YES, pady=(0,8))
+
+        botoes = ttk.Frame(self); botoes.pack(fill=X)
+        ttk.Button(botoes, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(side=LEFT)
+
+        self._carregar()
+
+    def _carregar(self):
+        for i in self.tabela.get_children():
+            self.tabela.delete(i)
+        dados = carregar_json_seguro(ARQ_SUBSTANCIAS, {"versao":1, "substancias":[]})
+        for s in dados.get("substancias", []):
+            self.tabela.insert("", tk.END, values=(s.get("id",""), s.get("nome",""), s.get("data",""), s.get("status","")))
+
+class TelaEntradas(ttk.Frame):
+    def __init__(self, master):
+        super().__init__(master, padding=10)
+        cols = ("ts","tipo","cracha","id","detalhes")
+        self.tabela = ttk.Treeview(self, columns=cols, show="headings", bootstyle=INFO, height=16)
+        titulos = {"ts":"Data/Hora","tipo":"Tipo","cracha":"Crachá","id":"ID","detalhes":"Detalhes"}
+        for c in cols:
+            self.tabela.heading(c, text=titulos[c])
+            self.tabela.column(c, width=180 if c=="ts" else 140)
+        self.tabela.pack(fill=BOTH, expand=YES, pady=(0,8))
+
+        botoes = ttk.Frame(self); botoes.pack(fill=X)
+        ttk.Button(botoes, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(side=LEFT)
+
+        self._carregar()
+
+    def _carregar(self):
+        for i in self.tabela.get_children():
+            self.tabela.delete(i)
+        if not ARQ_LOG.exists():
+            return
+        with open(ARQ_LOG, "r", encoding="utf-8") as f:
+            for linha in f:
+                try:
+                    ev = json.loads(linha)
+                except json.JSONDecodeError:
+                    continue
+                ts = ev.get("ts", "")
+                tipo = ev.get("tipo", ev.get("type",""))
+                cracha = ev.get("cracha", ev.get("badge_id",""))
+                sid = ev.get("id","")
+                detalhes = ""
+                self.tabela.insert("", tk.END, values=(ts, tipo, cracha, sid, detalhes))
 
 class AplicacaoPrincipal(ttk.Window):
     def __init__(self):
@@ -388,10 +381,12 @@ class AplicacaoPrincipal(ttk.Window):
         self._limpar_raiz()
         abas = ttk.Notebook(self); abas.pack(fill=BOTH, expand=YES, padx=10, pady=10)
         if usuario["papel"] == "admin":
-            abas.add(TelaSubstancias(abas), text="Substâncias")
+            abas.add(TelaSubstanciasAdmin(abas), text="Substâncias")
             abas.add(TelaUsuarios(abas), text="Usuários")
+            abas.add(TelaEntradas(abas), text="Entradas")
         else:
-            abas.add(TelaAmostras(abas), text="Amostras")
+            abas.add(TelaSubstanciasLeitura(abas), text="Substâncias")
+            abas.add(TelaEntradas(abas), text="Entradas")
         barra = ttk.Frame(self); barra.pack(fill=X, padx=10, pady=(0,10))
         ttk.Label(barra, text=f"Logado: {usuario['nome']} ({usuario['papel']})").pack(side=LEFT)
         ttk.Button(barra, text="Sair", bootstyle=DANGER, command=self._mostrar_login).pack(side=RIGHT)
