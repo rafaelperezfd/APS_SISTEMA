@@ -1,4 +1,29 @@
-{"ts": "2025-11-03T20:04:27-03:00", "tipo": "login", "cracha": "admin", "resultado": "permitido"}
-{"ts": "2025-11-03T20:04:42-03:00", "tipo": "login", "cracha": "admin", "resultado": "permitido"}
-{"ts": "2025-11-03T20:20:33-03:00", "tipo": "usuario_salvar", "cracha": "002"}
-{"ts": "2025-11-03T20:21:36-03:00", "tipo": "login", "cracha": "002", "resultado": "permitido"}
+{"ts": "2025-11-04T21:27:03-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T21:27:16-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T21:37:51-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T21:38:46-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T21:40:17-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T21:43:41-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T21:43:50-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T21:44:14-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T21:44:33-03:00", "tipo": "substancia_criar", "id": "0001"}
+{"ts": "2025-11-04T21:45:05-03:00", "tipo": "usuario_salvar", "cracha": "0002"}
+{"ts": "2025-11-04T21:45:32-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T21:45:49-03:00", "tipo": "login", "cracha": "0002", "resultado": "permitido"}
+{"ts": "2025-11-04T21:49:06-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T21:53:28-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T21:55:10-03:00", "tipo": "login", "cracha": "0002", "resultado": "permitido"}
+{"ts": "2025-11-04T21:59:50-03:00", "tipo": "login", "cracha": "0002", "resultado": "negado"}
+{"ts": "2025-11-04T21:59:57-03:00", "tipo": "login", "cracha": "0002", "resultado": "permitido"}
+{"ts": "2025-11-04T22:00:05-03:00", "tipo": "logout", "cracha": "0002", "resultado": "saida"}
+{"ts": "2025-11-04T22:00:24-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T22:00:57-03:00", "tipo": "usuario_salvar", "cracha": "2"}
+{"ts": "2025-11-04T22:01:03-03:00", "tipo": "usuario_deletar", "cracha": "2"}
+{"ts": "2025-11-04T22:01:24-03:00", "tipo": "logout", "cracha": "ADMIN001", "resultado": "saida"}
+{"ts": "2025-11-04T22:01:32-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "negado"}
+{"ts": "2025-11-04T22:01:40-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T22:01:44-03:00", "tipo": "logout", "cracha": "ADMIN001", "resultado": "saida"}
+{"ts": "2025-11-04T22:04:56-03:00", "tipo": "login", "cracha": "ADMIN001", "resultado": "permitido"}
+{"ts": "2025-11-04T22:05:39-03:00", "tipo": "logout", "cracha": "ADMIN001", "resultado": "saida"}
+{"ts": "2025-11-04T22:05:52-03:00", "tipo": "login", "cracha": "0002", "resultado": "negado"}
+{"ts": "2025-11-04T22:05:59-03:00", "tipo": "login", "cracha": "0002", "resultado": "negado"}
