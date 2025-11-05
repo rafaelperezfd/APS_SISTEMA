@@ -33,7 +33,7 @@ def registrar_evento(evento: dict):
     with ARQUIVO_ENTRADAS.open("a", encoding="utf-8") as arquivo:
         arquivo.write(json.dumps(evento, ensure_ascii=False) + "\n")
 
-# Repositório simples (usuários e substâncias)
+#dados para usuários e substâncias
 def carregar_usuarios():
     return carregar_json(ARQUIVO_USUARIOS, {"versao": 1, "usuarios": []})["usuarios"]
 
@@ -101,9 +101,9 @@ class TelaUsuarios(ttk.Frame):
         ttk.Label(grupo, text="Senha (texto):").grid(row=3, column=0, sticky=W)
         ttk.Entry(grupo, textvariable=self.var_senha, show="•").grid(row=3, column=1, sticky=EW, padx=6)
         barra = ttk.Frame(grupo); barra.grid(row=4, column=0, columnspan=2, pady=8)
-        ttk.Button(barra, text="Salvar/Atualizar", bootstyle=PRIMARY, command=self._salvar_usuario).pack(side=LEFT, padx=5)
+        ttk.Label(barra,text="Clique na linha do usuário para editar").pack(side=LEFT, padx=5)
+        ttk.Button(barra, text="Salvar", bootstyle=PRIMARY, command=self._salvar_usuario).pack(side=LEFT, padx=5)
         ttk.Button(barra, text="Deletar", bootstyle=DANGER, command=self._deletar_usuario).pack(side=LEFT, padx=5)
-        ttk.Button(barra, text="Limpar", bootstyle=SECONDARY, command=self._limpar_formulario).pack(side=LEFT, padx=5)
         grupo.columnconfigure(1, weight=1)
         self.grid_usuarios = ttk.Treeview(self, columns=("cracha", "nome", "papel"), show="headings", height=10, bootstyle=INFO)
         for coluna, titulo in zip(("cracha", "nome", "papel"), ("Crachá", "Nome", "Papel")):
@@ -157,10 +157,9 @@ class TelaSubstanciasAdmin(ttk.Frame):
         ttk.Label(grupo, text="Data").grid(row=1, column=0, sticky=W); ttk.Entry(grupo, textvariable=self.var_data, width=24).grid(row=1, column=1, sticky=EW, padx=6)
         ttk.Label(grupo, text="Status").grid(row=1, column=2, sticky=W); ttk.Entry(grupo, textvariable=self.var_status, width=24).grid(row=1, column=3, sticky=EW, padx=6)
         barra = ttk.Frame(grupo); barra.grid(row=2, column=0, columnspan=4, sticky=W, pady=8)
-        ttk.Button(barra, text="Salvar/Atualizar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=4)
+        ttk.Label(barra, text="Clique na linha da substancia para editar").pack(side=LEFT, padx=4)
+        ttk.Button(barra, text="Salvar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=4)
         ttk.Button(barra, text="Deletar", bootstyle=DANGER, command=self._deletar).pack(side=LEFT, padx=4)
-        ttk.Button(barra, text="Limpar", bootstyle=SECONDARY, command=self._limpar).pack(side=LEFT, padx=4)
-        ttk.Button(barra, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(side=LEFT, padx=4)
         for col in (1, 3): grupo.columnconfigure(col, weight=1)
 
         self.grid_substancias = ttk.Treeview(self, columns=("id", "nome", "data", "status"), show="headings", bootstyle=INFO, height=12)
@@ -222,7 +221,7 @@ class TelaSubstanciasLeitura(ttk.Frame):
         dados = carregar_substancias()
         for subst in dados.get("substancias", []):
             self.grid_substancias.insert("", tk.END, values=(subst.get("id", ""), subst.get("nome", ""), subst.get("data", ""), subst.get("status", "")))
-Parte visual para admin, para visualizar entrada e saidas
+# Parte visual para admin, para visualizar entrada e saidas
 class TelaEntradas(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, padding=10)

@@ -2,11 +2,18 @@
   "versao": 1,
   "usuarios": [
     {
-      "cracha": "ADMIN001",
+      "cracha": "admin",
       "nome": "Administrador",
       "papel": "admin",
       "ativo": true,
       "senha_plana": "Admin@1234"
+    },
+    {
+      "cracha": "0002",
+      "nome": "user",
+      "papel": "user",
+      "ativo": true,
+      "senha_plana": "usuario123"
     }
   ]
 }
