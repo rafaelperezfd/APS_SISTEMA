@@ -6,7 +6,7 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import messagebox
 
-# Caminhos dos arquivos ------------------------------------------------
+# Caminhos dos arquivos 
 PASTA_APP = pathlib.Path(__file__).resolve().parent
 ARQ_USUARIOS = PASTA_APP / "usuarios.json"
 ARQ_SUBSTANCIAS = PASTA_APP / "substancias.json"
