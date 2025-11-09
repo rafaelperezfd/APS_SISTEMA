@@ -6,6 +6,12 @@
       "nome": "água",
       "data": "10/08/2025",
       "status": "finalizado"
+    },
+    {
+      "id": "0002",
+      "nome": "Calcio",
+      "data": "02/11/2025",
+      "status": "iniciando"
     }
   ]
 }

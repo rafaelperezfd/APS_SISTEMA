@@ -1,279 +1,460 @@
-import json, pathlib, datetime
+import json
+import pathlib
+import datetime
 import tkinter as tk
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import messagebox
 
-# Caminhos de arquivos
-DIRETORIO_APP = pathlib.Path(__file__).resolve().parent
-ARQUIVO_USUARIOS = DIRETORIO_APP / "usuarios.json"
-ARQUIVO_SUBSTANCIAS = DIRETORIO_APP / "substancias.json"
-ARQUIVO_ENTRADAS = DIRETORIO_APP / "entrada_saida.jsonl"
+# Caminhos dos arquivos ------------------------------------------------
+PASTA_APP = pathlib.Path(__file__).resolve().parent
+ARQ_USUARIOS = PASTA_APP / "usuarios.json"
+ARQ_SUBSTANCIAS = PASTA_APP / "substancias.json"
+ARQ_LOG = PASTA_APP / "entrada_saida.jsonl"
 
-# Função para pegar tempo atual da biblioteca DateTime
-def timestamp_atual():
+# Pegar tempo exato
+def agora():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
-# função para carrevar todos os DB do sistema
-def carregar_json(caminho_arquivo: pathlib.Path, conteudo_padrao: dict):
+# Ler arquivo JSON
+def ler_json(caminho: pathlib.Path, padrao: dict):
     try:
-        if not caminho_arquivo.exists():
-            caminho_arquivo.write_text(json.dumps(conteudo_padrao, ensure_ascii=False, indent=2), "utf-8")
-        texto = caminho_arquivo.read_text("utf-8")
-        return json.loads(texto) if texto.strip() else conteudo_padrao
+        if not caminho.exists():
+            caminho.write_text(json.dumps(padrao, ensure_ascii=False, indent=2), "utf-8")
+        texto = caminho.read_text("utf-8")
+        return json.loads(texto) if texto.strip() else padrao
     except Exception:
-        caminho_arquivo.write_text(json.dumps(conteudo_padrao, ensure_ascii=False, indent=2), "utf-8")
-        return conteudo_padrao
+        caminho.write_text(json.dumps(padrao, ensure_ascii=False, indent=2), "utf-8")
+        return padrao
 
-def salvar_json(caminho_arquivo: pathlib.Path, dados: dict):
-    caminho_arquivo.write_text(json.dumps(dados, ensure_ascii=False, indent=2), "utf-8")
+def salvar_json(caminho: pathlib.Path, dados: dict):
+    caminho.write_text(json.dumps(dados, ensure_ascii=False, indent=2), "utf-8")
+# Registrar login
+def registrar_log(evento: dict):
+    if not ARQ_LOG.exists():
+        ARQ_LOG.touch()
+    with ARQ_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(evento, ensure_ascii=False) + "\n")
 
-def registrar_evento(evento: dict):
-    if not ARQUIVO_ENTRADAS.exists():
-        ARQUIVO_ENTRADAS.touch()
-    with ARQUIVO_ENTRADAS.open("a", encoding="utf-8") as arquivo:
-        arquivo.write(json.dumps(evento, ensure_ascii=False) + "\n")
-
-#dados para usuários e substâncias
-def carregar_usuarios():
-    return carregar_json(ARQUIVO_USUARIOS, {"versao": 1, "usuarios": []})["usuarios"]
+# CRUD para usuario
+def listar_usuarios():
+    base = ler_json(ARQ_USUARIOS, {"versao": 1, "usuarios": []})
+    return base.get("usuarios", [])
 
 def salvar_usuarios(lista_usuarios: list):
-    salvar_json(ARQUIVO_USUARIOS, {"versao": 1, "usuarios": lista_usuarios})
-
+    salvar_json(ARQ_USUARIOS, {"versao": 1, "usuarios": lista_usuarios})
+# Busca o usuario
 def buscar_usuario_por_cracha(cracha: str):
-    lista = carregar_usuarios()
-    return next((u for u in lista if u.get("cracha") == cracha), None)
+    lista_usuarios = listar_usuarios()
+    for usuario in lista_usuarios:
+        if usuario.get("cracha") == cracha:
+            return usuario
+    return None
+# Cria o usuario
+def criar_usuario(cracha: str, nome: str, papel: str, senha_plana: str):
+    lista_usuarios = listar_usuarios()
+    for usuario in lista_usuarios:
+        if usuario.get("cracha") == cracha:
+            raise ValueError("Crachá já existe")
+    novo_usuario = {"cracha": cracha, "nome": nome, "papel": papel, "ativo": True, "senha_plana": senha_plana}
+    lista_usuarios.append(novo_usuario)
+    salvar_usuarios(lista_usuarios)
+# Atualiza o usuario ja existente
+def atualizar_usuario(cracha: str, nome: str, papel: str, nova_senha_plana: str | None):
+    lista_usuarios = listar_usuarios()
+    usuario_encontrado = None
+    for usuario in lista_usuarios:
+        if usuario.get("cracha") == cracha:
+            usuario_encontrado = usuario
+            break
+    if usuario_encontrado is None:
+        raise ValueError("Usuário não encontrado")
+    usuario_encontrado["nome"] = nome
+    usuario_encontrado["papel"] = papel
+    usuario_encontrado["ativo"] = True
+    if nova_senha_plana:
+        usuario_encontrado["senha_plana"] = nova_senha_plana
+    salvar_usuarios(lista_usuarios)
+# Deletar usuario
+def deletar_usuario(cracha: str):
+    lista_usuarios = listar_usuarios()
+    nova_lista = []
+    for usuario in lista_usuarios:
+        if usuario.get("cracha") != cracha:
+            nova_lista.append(usuario)
+    if len(nova_lista) == len(lista_usuarios):
+        raise ValueError("Usuário não encontrado")
+    salvar_usuarios(nova_lista)
 
-def credenciais_validas(senha_digitada: str, usuario_encontrado: dict) -> bool:
-    senha_plana = usuario_encontrado.get("senha_plana")
-    return isinstance(senha_plana, str) and (senha_digitada == senha_plana)
+# Senha plana é a senha normal do admin
+def verificar_login(cracha: str, senha_digitada: str) -> dict | None:
+    usuario = buscar_usuario_por_cracha(cracha)
+    if not usuario or not usuario.get("ativo", True):
+        return None
+    senha_plana = usuario.get("senha_plana")
+    if isinstance(senha_plana, str) and senha_digitada == senha_plana:
+        return usuario
+    return None
 
+# CRUD de substâncias
+# Consultas no banco de dados
 def carregar_substancias():
-    return carregar_json(ARQUIVO_SUBSTANCIAS, {"versao": 1, "substancias": []})
+    return ler_json(ARQ_SUBSTANCIAS, {"versao": 1, "substancias": []})
 
-def salvar_substancias(dados_substancias: dict):
-    salvar_json(ARQUIVO_SUBSTANCIAS, dados_substancias)
+def salvar_base_substancias(base: dict):
+    salvar_json(ARQ_SUBSTANCIAS, base)
 
-# Parte de interface visual feita com o TTKBOOTSTRAP
+def listar_substancias():
+    base = carregar_substancias()
+    return base.get("substancias", [])
+# Cria a substancia
+def criar_substancia(subst_id: str, nome: str, data: str, status: str):
+    base = carregar_substancias()
+    lista = base.get("substancias", [])
+    for substancia in lista:
+        if substancia.get("id") == subst_id:
+            raise ValueError("ID já existe")
+    nova = {"id": subst_id, "nome": nome, "data": data, "status": status}
+    lista.append(nova)
+    base["substancias"] = lista
+    salvar_base_substancias(base)
+
+def atualizar_substancia(subst_id: str, nome: str, data: str, status: str):
+    base = carregar_substancias()
+    lista = base.get("substancias", [])
+    alvo = None
+    for substancia in lista:
+        if substancia.get("id") == subst_id:
+            alvo = substancia
+            break
+    if alvo is None:
+        raise ValueError("Substância não encontrada")
+    alvo["nome"] = nome
+    alvo["data"] = data
+    alvo["status"] = status
+    salvar_base_substancias(base)
+
+def deletar_substancia(subst_id: str):
+    base = carregar_substancias()
+    lista = base.get("substancias", [])
+    nova_lista = []
+    for substancia in lista:
+        if substancia.get("id") != subst_id:
+            nova_lista.append(substancia)
+    if len(nova_lista) == len(lista):
+        raise ValueError("Substância não encontrada")
+    base["substancias"] = nova_lista
+    salvar_base_substancias(base)
+
+# Tela de login
 class TelaLogin(ttk.Frame):
-    def __init__(self, master, callback_autenticado):
+    # Definindo o front-end com tkkbootstrap e juntando com back-end
+    def __init__(self, master, ao_autenticar):
         super().__init__(master, padding=20)
-        self.callback_autenticado = callback_autenticado
-        self.var_cracha = tk.StringVar()
-        self.var_senha = tk.StringVar()
+        self.ao_autenticar = ao_autenticar
+        self.cracha_var = tk.StringVar()
+        self.senha_var = tk.StringVar()
+
         ttk.Label(self, text="Login", font=("-size", 16)).pack(pady=(0, 12))
-        frame_campos = ttk.Frame(self); frame_campos.pack(fill=X)
-        ttk.Label(frame_campos, text="Crachá:").grid(row=0, column=0, sticky=W, pady=6)
-        ttk.Entry(frame_campos, textvariable=self.var_cracha, width=32).grid(row=0, column=1, sticky=EW, padx=6)
-        ttk.Label(frame_campos, text="Senha:").grid(row=1, column=0, sticky=W, pady=6)
-        ttk.Entry(frame_campos, textvariable=self.var_senha, show="•", width=32).grid(row=1, column=1, sticky=EW, padx=6)
-        frame_botoes = ttk.Frame(self); frame_botoes.pack(pady=12)
-        ttk.Button(frame_botoes, text="Entrar", bootstyle=SUCCESS, command=self._fazer_login).pack(side=LEFT, padx=6)
-        ttk.Button(frame_botoes, text="Fechar", bootstyle=DANGER, command=self.quit).pack(side=LEFT, padx=6)
-        frame_campos.columnconfigure(1, weight=1)
+        frame = ttk.Frame(self); frame.pack(fill=X)
+
+        ttk.Label(frame, text="Crachá:").grid(row=0, column=0, sticky=W, pady=6)
+        ttk.Entry(frame, textvariable=self.cracha_var, width=32).grid(row=0, column=1, sticky=EW, padx=6)
+        ttk.Label(frame, text="Senha:").grid(row=1, column=0, sticky=W, pady=6)
+        ttk.Entry(frame, textvariable=self.senha_var, show="•", width=32).grid(row=1, column=1, sticky=EW, padx=6)
+
+        botoes = ttk.Frame(self); botoes.pack(pady=12)
+        ttk.Button(botoes, text="Entrar", bootstyle=SUCCESS, command=self._entrar).pack(side=LEFT, padx=6)
+        ttk.Button(botoes, text="Fechar", bootstyle=DANGER, command=self.quit).pack(side=LEFT, padx=6)
+
+        frame.columnconfigure(1, weight=1)
         self.pack(fill=BOTH, expand=YES)
-    # feito o login é executado essa função para registrar entrada
-    def _fazer_login(self):
-        cracha_digitado = self.var_cracha.get().strip()
-        senha_digitada = self.var_senha.get()
-        usuario_encontrado = buscar_usuario_por_cracha(cracha_digitado)
-        if not usuario_encontrado or not usuario_encontrado.get("ativo", True) or not credenciais_validas(senha_digitada, usuario_encontrado):
+
+    def _entrar(self):
+        cracha = self.cracha_var.get().strip()
+        senha = self.senha_var.get()
+        usuario = verificar_login(cracha, senha)
+        if not usuario:
             messagebox.showerror("Acesso negado", "Crachá/Senha inválidos.")
-            registrar_evento({"ts": timestamp_atual(), "tipo": "login", "cracha": cracha_digitado, "resultado": "negado"})
+            registrar_log({"ts": agora(), "tipo": "login", "cracha": cracha, "resultado": "negado"})
             return
-        registrar_evento({"ts": timestamp_atual(), "tipo": "login", "cracha": usuario_encontrado["cracha"], "resultado": "permitido"})
-        self.callback_autenticado(usuario_encontrado)
-# Interface visual para os dois tipos de usuarios ADMIN e USUARIO NORMAL
+        registrar_log({"ts": agora(), "tipo": "login", "cracha": usuario["cracha"], "resultado": "permitido"})
+        self.ao_autenticar(usuario)
+# Tela de usuario
 class TelaUsuarios(ttk.Frame):
+    # Definindo o front-end com tkkbootstrap e juntando com back-end
     def __init__(self, master):
         super().__init__(master, padding=10)
-        self.var_cracha = tk.StringVar()
-        self.var_nome = tk.StringVar()
-        self.var_papel = tk.StringVar(value="user")
-        self.var_senha = tk.StringVar()
+        self.cracha_var = tk.StringVar()
+        self.nome_var = tk.StringVar()
+        self.papel_var = tk.StringVar(value="user")
+        self.senha_var = tk.StringVar()
+
         grupo = ttk.Labelframe(self, text="Usuários", padding=12); grupo.pack(fill=X)
         ttk.Label(grupo, text="Crachá:").grid(row=0, column=0, sticky=W)
-        ttk.Entry(grupo, textvariable=self.var_cracha).grid(row=0, column=1, sticky=EW, padx=6)
+        ttk.Entry(grupo, textvariable=self.cracha_var).grid(row=0, column=1, sticky=EW, padx=6)
         ttk.Label(grupo, text="Nome:").grid(row=1, column=0, sticky=W)
-        ttk.Entry(grupo, textvariable=self.var_nome).grid(row=1, column=1, sticky=EW, padx=6)
+        ttk.Entry(grupo, textvariable=self.nome_var).grid(row=1, column=1, sticky=EW, padx=6)
         ttk.Label(grupo, text="Papel:").grid(row=2, column=0, sticky=W)
-        ttk.Combobox(grupo, textvariable=self.var_papel, values=["admin", "user"], state="readonly").grid(row=2, column=1, sticky=EW, padx=6)
-        ttk.Label(grupo, text="Senha (texto):").grid(row=3, column=0, sticky=W)
-        ttk.Entry(grupo, textvariable=self.var_senha, show="•").grid(row=3, column=1, sticky=EW, padx=6)
+        ttk.Combobox(grupo, textvariable=self.papel_var, values=["admin", "user"], state="readonly").grid(row=2, column=1, sticky=EW, padx=6)
+        ttk.Label(grupo, text="Senha:").grid(row=3, column=0, sticky=W)
+        ttk.Entry(grupo, textvariable=self.senha_var, show="•").grid(row=3, column=1, sticky=EW, padx=6)
+
         barra = ttk.Frame(grupo); barra.grid(row=4, column=0, columnspan=2, pady=8)
-        ttk.Label(barra,text="Clique na linha do usuário para editar").pack(side=LEFT, padx=5)
-        ttk.Button(barra, text="Salvar", bootstyle=PRIMARY, command=self._salvar_usuario).pack(side=LEFT, padx=5)
-        ttk.Button(barra, text="Deletar", bootstyle=DANGER, command=self._deletar_usuario).pack(side=LEFT, padx=5)
+        ttk.Button(barra, text="Salvar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=5)
+        ttk.Button(barra, text="Deletar", bootstyle=DANGER, command=self._deletar).pack(side=LEFT, padx=5)
+        ttk.Button(barra, text="Limpar", bootstyle=SECONDARY, command=self._limpar).pack(side=LEFT, padx=5)
         grupo.columnconfigure(1, weight=1)
-        self.grid_usuarios = ttk.Treeview(self, columns=("cracha", "nome", "papel"), show="headings", height=10, bootstyle=INFO)
+        # larguras e cabeçalho
+        self.tabela = ttk.Treeview(self, columns=("cracha", "nome", "papel"), show="headings", height=10, bootstyle=INFO)
         for coluna, titulo in zip(("cracha", "nome", "papel"), ("Crachá", "Nome", "Papel")):
-            self.grid_usuarios.heading(coluna, text=titulo); self.grid_usuarios.column(coluna, width=200 if coluna != "papel" else 120)
-        self.grid_usuarios.pack(fill=BOTH, expand=YES, pady=8); self.grid_usuarios.bind("<<TreeviewSelect>>", self._selecionar_linha)
+            self.tabela.heading(coluna, text=titulo)
+            self.tabela.column(coluna, width=220 if coluna != "papel" else 120)
+        self.tabela.pack(fill=BOTH, expand=YES, pady=8)
+        self.tabela.bind("<<TreeviewSelect>>", self._selecionar)
+
         self._recarregar()
-
+    # CRUD PARA USUARIOS
     def _recarregar(self):
-        for item in self.grid_usuarios.get_children(): self.grid_usuarios.delete(item)
-        for usuario in carregar_usuarios():
-            self.grid_usuarios.insert("", tk.END, values=(usuario["cracha"], usuario["nome"], usuario["papel"]))
-
-    def _limpar_formulario(self):
-        self.var_cracha.set(""); self.var_nome.set(""); self.var_papel.set("user"); self.var_senha.set("")
-
-    def _selecionar_linha(self, _):
-        if not self.grid_usuarios.selection(): return
-        cracha, nome, papel = self.grid_usuarios.item(self.grid_usuarios.selection()[0])["values"]
-        self.var_cracha.set(cracha); self.var_nome.set(nome); self.var_papel.set(papel); self.var_senha.set("")
-
-    def _salvar_usuario(self):
-        cracha = self.var_cracha.get().strip(); nome = self.var_nome.get().strip(); papel = self.var_papel.get().strip(); senha_nova = self.var_senha.get()
-        if not cracha or not nome:
-            messagebox.showwarning("Campos", "Informe crachá e nome."); return
-        lista = carregar_usuarios()
-        existente = next((u for u in lista if u["cracha"] == cracha), None)
-        if existente:
-            existente["nome"] = nome; existente["papel"] = papel; existente["ativo"] = True
-            if senha_nova: existente["senha_plana"] = senha_nova
-        else:
-            lista.append({"cracha": cracha, "nome": nome, "papel": papel, "ativo": True, "senha_plana": senha_nova})
-        salvar_usuarios(lista); registrar_evento({"ts": timestamp_atual(), "tipo": "usuario_salvar", "cracha": cracha}); self._recarregar(); self._limpar_formulario()
-
-    def _deletar_usuario(self):
-        cracha = self.var_cracha.get().strip()
-        if not cracha: messagebox.showwarning("Seleção", "Escolha um usuário."); return
-        lista = carregar_usuarios()
-        nova_lista = [u for u in lista if u["cracha"] != cracha]
-        if len(nova_lista) == len(lista):
-            messagebox.showinfo("Info", "Crachá não encontrado."); return
-        salvar_usuarios(nova_lista); registrar_evento({"ts": timestamp_atual(), "tipo": "usuario_deletar", "cracha": cracha}); self._recarregar(); self._limpar_formulario()
-
-# Tela para parte de CRUD no sistema de substancias
-class TelaSubstanciasAdmin(ttk.Frame):
-    def __init__(self, master):
-        super().__init__(master, padding=10)
-        self.var_id = tk.StringVar(); self.var_nome = tk.StringVar(); self.var_data = tk.StringVar(); self.var_status = tk.StringVar()
-        grupo = ttk.Labelframe(self, text="Cadastro de Substâncias", padding=10); grupo.pack(fill=X, pady=(0, 8))
-        ttk.Label(grupo, text="ID").grid(row=0, column=0, sticky=W); ttk.Entry(grupo, textvariable=self.var_id, width=24).grid(row=0, column=1, sticky=EW, padx=6)
-        ttk.Label(grupo, text="Nome").grid(row=0, column=2, sticky=W); ttk.Entry(grupo, textvariable=self.var_nome, width=36).grid(row=0, column=3, sticky=EW, padx=6)
-        ttk.Label(grupo, text="Data").grid(row=1, column=0, sticky=W); ttk.Entry(grupo, textvariable=self.var_data, width=24).grid(row=1, column=1, sticky=EW, padx=6)
-        ttk.Label(grupo, text="Status").grid(row=1, column=2, sticky=W); ttk.Entry(grupo, textvariable=self.var_status, width=24).grid(row=1, column=3, sticky=EW, padx=6)
-        barra = ttk.Frame(grupo); barra.grid(row=2, column=0, columnspan=4, sticky=W, pady=8)
-        ttk.Label(barra, text="Clique na linha da substancia para editar").pack(side=LEFT, padx=4)
-        ttk.Button(barra, text="Salvar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=4)
-        ttk.Button(barra, text="Deletar", bootstyle=DANGER, command=self._deletar).pack(side=LEFT, padx=4)
-        for col in (1, 3): grupo.columnconfigure(col, weight=1)
-
-        self.grid_substancias = ttk.Treeview(self, columns=("id", "nome", "data", "status"), show="headings", bootstyle=INFO, height=12)
-        for coluna in ("id", "nome", "data", "status"):
-            self.grid_substancias.heading(coluna, text=coluna.upper() if coluna != "nome" else "Nome")
-        self.grid_substancias.column("id", width=140); self.grid_substancias.column("nome", width=260); self.grid_substancias.column("data", width=160); self.grid_substancias.column("status", width=160)
-        self.grid_substancias.pack(fill=BOTH, expand=YES); self.grid_substancias.bind("<<TreeviewSelect>>", self._selecionar)
-        self._carregar()
-
-    def _carregar(self):
-        for item in self.grid_substancias.get_children(): self.grid_substancias.delete(item)
-        dados = carregar_substancias()
-        for subst in dados.get("substancias", []):
-            self.grid_substancias.insert("", tk.END, values=(subst.get("id", ""), subst.get("nome", ""), subst.get("data", ""), subst.get("status", "")))
-
-    def _selecionar(self, _):
-        if not self.grid_substancias.selection(): return
-        sid, nome, data, status = self.grid_substancias.item(self.grid_substancias.selection()[0])["values"]
-        self.var_id.set(str(sid)); self.var_nome.set(str(nome)); self.var_data.set(str(data)); self.var_status.set(str(status))
+        for item in self.tabela.get_children():
+            self.tabela.delete(item)
+        for usuario in listar_usuarios():
+            self.tabela.insert("", tk.END, values=(usuario["cracha"], usuario["nome"], usuario["papel"]))
 
     def _limpar(self):
-        self.var_id.set(""); self.var_nome.set(""); self.var_data.set(""); self.var_status.set("")
+        self.cracha_var.set("")
+        self.nome_var.set("")
+        self.papel_var.set("user")
+        self.senha_var.set("")
+
+    def _selecionar(self, _):
+        if not self.tabela.selection():
+            return
+        cracha, nome, papel = self.tabela.item(self.tabela.selection()[0])["values"]
+        self.cracha_var.set(cracha)
+        self.nome_var.set(nome)
+        self.papel_var.set(papel)
+        self.senha_var.set("")
 
     def _salvar(self):
-        sid = self.var_id.get().strip(); nome = self.var_nome.get().strip(); data = self.var_data.get().strip(); status = self.var_status.get().strip()
-        if not sid or not nome:
-            messagebox.showwarning("Campos", "Informe ao menos ID e Nome."); return
-        if not data: data = timestamp_atual().split("T")[0]
-        store = carregar_substancias(); lista = store.get("substancias", [])
-        existente = next((s for s in lista if s.get("id") == sid), None)
-        acao = "substancia_atualizar" if existente else "substancia_criar"
-        if existente: existente.update({"nome": nome, "data": data, "status": status})
-        else: lista.append({"id": sid, "nome": nome, "data": data, "status": status}); store["substancias"] = lista
-        salvar_substancias(store); registrar_evento({"ts": timestamp_atual(), "tipo": acao, "id": sid}); self._carregar(); self._limpar()
+        cracha = self.cracha_var.get().strip()
+        nome = self.nome_var.get().strip()
+        papel = self.papel_var.get().strip()
+        senha = self.senha_var.get()
+        if not cracha or not nome:
+            messagebox.showwarning("Campos", "Informe crachá e nome.")
+            return
+        try:
+            if buscar_usuario_por_cracha(cracha):
+                atualizar_usuario(cracha, nome, papel, senha if senha else None)
+            else:
+                criar_usuario(cracha, nome, papel, senha)
+            registrar_log({"ts": agora(), "tipo": "usuario_salvar", "cracha": cracha})
+            self._recarregar()
+            self._limpar()
+        except ValueError as erro:
+            messagebox.showinfo("Info", str(erro))
 
     def _deletar(self):
-        sid = self.var_id.get().strip()
-        if not sid:
-            messagebox.showwarning("Seleção", "Informe o ID."); return
-        store = carregar_substancias(); lista = store.get("substancias", [])
-        nova_lista = [s for s in lista if s.get("id") != sid]
-        if len(nova_lista) == len(lista):
-            messagebox.showinfo("Info", "ID não encontrado."); return
-        store["substancias"] = nova_lista; salvar_substancias(store); registrar_evento({"ts": timestamp_atual(), "tipo": "substancia_deletar", "id": sid}); self._carregar(); self._limpar()
-# Feito apenas para o usuario ter alguma interação no sistema proposto
-class TelaSubstanciasLeitura(ttk.Frame):
+        cracha = self.cracha_var.get().strip()
+        if not cracha:
+            messagebox.showwarning("Seleção", "Escolha um usuário.")
+            return
+        try:
+            deletar_usuario(cracha)
+            registrar_log({"ts": agora(), "tipo": "usuario_deletar", "cracha": cracha})
+            self._recarregar()
+            self._limpar()
+        except ValueError as erro:
+            messagebox.showinfo("Info", str(erro))
+# Tela de substancias
+class TelaSubstanciasAdmin(ttk.Frame):
+    # Definindo o front-end com tkkbootstrap e juntando com back-end
     def __init__(self, master):
         super().__init__(master, padding=10)
-        self.grid_substancias = ttk.Treeview(self, columns=("id", "nome", "data", "status"), show="headings", bootstyle=INFO, height=14)
+        self.id_var = tk.StringVar()
+        self.nome_var = tk.StringVar()
+        self.data_var = tk.StringVar()
+        self.status_var = tk.StringVar()
+
+        grupo = ttk.Labelframe(self, text="Cadastro de Substâncias", padding=10); grupo.pack(fill=X, pady=(0, 8))
+        ttk.Label(grupo, text="ID").grid(row=0, column=0, sticky=W); ttk.Entry(grupo, textvariable=self.id_var, width=24).grid(row=0, column=1, sticky=EW, padx=6)
+        ttk.Label(grupo, text="Nome").grid(row=0, column=2, sticky=W); ttk.Entry(grupo, textvariable=self.nome_var, width=36).grid(row=0, column=3, sticky=EW, padx=6)
+        ttk.Label(grupo, text="Data").grid(row=1, column=0, sticky=W); ttk.Entry(grupo, textvariable=self.data_var, width=24).grid(row=1, column=1, sticky=EW, padx=6)
+        ttk.Label(grupo, text="Status").grid(row=1, column=2, sticky=W); ttk.Entry(grupo, textvariable=self.status_var, width=24).grid(row=1, column=3, sticky=EW, padx=6)
+
+        barra = ttk.Frame(grupo); barra.grid(row=2, column=0, columnspan=4, sticky=W, pady=8)
+        ttk.Button(barra, text="Salvar", bootstyle=PRIMARY, command=self._salvar).pack(side=LEFT, padx=4)
+        ttk.Button(barra, text="Deletar", bootstyle=DANGER, command=self._deletar).pack(side=LEFT, padx=4)
+        ttk.Button(barra, text="Limpar", bootstyle=SECONDARY, command=self._limpar).pack(side=LEFT, padx=4)
+        # Cabeçalhos
+        self.tabela = ttk.Treeview(self, columns=("id", "nome", "data", "status"), show="headings", bootstyle=INFO, height=12)
         for coluna in ("id", "nome", "data", "status"):
-            self.grid_substancias.heading(coluna, text=coluna.upper() if coluna != "nome" else "Nome")
-        self.grid_substancias.column("id", width=140); self.grid_substancias.column("nome", width=260); self.grid_substancias.column("data", width=160); self.grid_substancias.column("status", width=160)
-        self.grid_substancias.pack(fill=BOTH, expand=YES, pady=(0, 8))
-        ttk.Button(self, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(anchor=W)
+            self.tabela.heading(coluna, text=coluna.upper() if coluna != "nome" else "Nome")
+        # larguras
+        self.tabela.column("id", width=140)
+        self.tabela.column("nome", width=260)
+        self.tabela.column("data", width=160)
+        self.tabela.column("status", width=160)
+        self.tabela.pack(fill=BOTH, expand=YES)
+        self.tabela.bind("<<TreeviewSelect>>", self._selecionar)
+
+        self._carregar()
+    # CRUD PARA SUBSTANCIAS
+    def _carregar(self):
+        for item in self.tabela.get_children():
+            self.tabela.delete(item)
+        for subst in listar_substancias():
+            self.tabela.insert("", tk.END, values=(subst.get("id", ""), subst.get("nome", ""), subst.get("data", ""), subst.get("status", "")))
+
+    def _selecionar(self, _):
+        if not self.tabela.selection():
+            return
+        subst_id, nome, data, status = self.tabela.item(self.tabela.selection()[0])["values"]
+        self.id_var.set(str(subst_id))
+        self.nome_var.set(str(nome))
+        self.data_var.set(str(data))
+        self.status_var.set(str(status))
+
+    def _limpar(self):
+        self.id_var.set("")
+        self.nome_var.set("")
+        self.data_var.set("")
+        self.status_var.set("")
+
+    def _salvar(self):
+        subst_id = self.id_var.get().strip()
+        nome = self.nome_var.get().strip()
+        data = self.data_var.get().strip()
+        status = self.status_var.get().strip()
+        if not subst_id or not nome:
+            messagebox.showwarning("Campos", "Informe ao menos ID e Nome.")
+            return
+        if not data:
+            data = agora().split("T")[0]
+        try:
+            existe = False
+            for subst in listar_substancias():
+                if subst.get("id") == subst_id:
+                    existe = True
+                    break
+            if existe:
+                atualizar_substancia(subst_id, nome, data, status)
+                registrar_log({"ts": agora(), "tipo": "substancia_atualizar", "id": subst_id})
+            else:
+                criar_substancia(subst_id, nome, data, status)
+                registrar_log({"ts": agora(), "tipo": "substancia_criar", "id": subst_id})
+            self._carregar()
+            self._limpar()
+        except ValueError as erro:
+            messagebox.showinfo("Info", str(erro))
+
+    def _deletar(self):
+        subst_id = self.id_var.get().strip()
+        if not subst_id:
+            messagebox.showwarning("Seleção", "Informe o ID.")
+            return
+        try:
+            deletar_substancia(subst_id)
+            registrar_log({"ts": agora(), "tipo": "substancia_deletar", "id": subst_id})
+            self._carregar()
+            self._limpar()
+        except ValueError as erro:
+            messagebox.showinfo("Info", str(erro))
+# Interface de substancias para o usuario normal
+class TelaSubstanciasLeitura(ttk.Frame):
+    # Definindo o front-end com tkkbootstrap e juntando com back-end
+    def __init__(self, master):
+        super().__init__(master, padding=10)
+        # cabeçalhos
+        self.tabela = ttk.Treeview(self, columns=("id", "nome", "data", "status"), show="headings", bootstyle=INFO, height=14)
+        for coluna in ("id", "nome", "data", "status"):
+            self.tabela.heading(coluna, text=coluna.upper() if coluna != "nome" else "Nome")
+        # larguras
+        self.tabela.column("id", width=140)
+        self.tabela.column("nome", width=260)
+        self.tabela.column("data", width=160) 
+        self.tabela.column("status", width=160)
+        self.tabela.pack(fill=BOTH, expand=YES, pady=(0, 8))
         self._carregar()
 
     def _carregar(self):
-        for item in self.grid_substancias.get_children(): self.grid_substancias.delete(item)
-        dados = carregar_substancias()
-        for subst in dados.get("substancias", []):
-            self.grid_substancias.insert("", tk.END, values=(subst.get("id", ""), subst.get("nome", ""), subst.get("data", ""), subst.get("status", "")))
-# Parte visual para admin, para visualizar entrada e saidas
+        for item in self.tabela.get_children():
+            self.tabela.delete(item)
+        for subst in listar_substancias():
+            self.tabela.insert("", tk.END, values=(subst.get("id", ""), subst.get("nome", ""), subst.get("data", ""), subst.get("status", "")))
+
+# Interface de entradas para admin
 class TelaEntradas(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, padding=10)
-        colunas = ("ts", "tipo", "cracha", "id", "detalhes")
-        self.grid_entradas = ttk.Treeview(self, columns=colunas, show="headings", bootstyle=INFO, height=16)
-        for coluna, titulo in zip(colunas, ("Data/Hora", "Tipo", "Crachá", "ID", "Detalhes")):
-            self.grid_entradas.heading(coluna, text=titulo)
-        self.grid_entradas.column("ts", width=180); self.grid_entradas.column("tipo", width=140); self.grid_entradas.column("cracha", width=140); self.grid_entradas.column("id", width=140); self.grid_entradas.column("detalhes", width=200)
-        self.grid_entradas.pack(fill=BOTH, expand=YES, pady=(0, 8))
-        ttk.Button(self, text="Recarregar", bootstyle=INFO, command=self._carregar).pack(anchor=W)
+        colunas = ("ts", "tipo", "cracha", "id")  
+        self.tabela = ttk.Treeview(self, columns=colunas, show="headings", bootstyle=INFO, height=16)
+        # cabeçalhos
+        titulos = {"ts": "Data/Hora", "tipo": "Tipo", "cracha": "Crachá", "id": "ID"}
+        for coluna in colunas:
+            self.tabela.heading(coluna, text=titulos[coluna])
+        # larguras
+        self.tabela.column("ts", width=180)
+        self.tabela.column("tipo", width=140)
+        self.tabela.column("cracha", width=140)
+        self.tabela.column("id", width=140)
+        self.tabela.pack(fill=BOTH, expand=YES, pady=(0, 8))
         self._carregar()
 
     def _carregar(self):
-        for item in self.grid_entradas.get_children(): self.grid_entradas.delete(item)
-        if not ARQUIVO_ENTRADAS.exists(): return
-        with ARQUIVO_ENTRADAS.open("r", encoding="utf-8") as arquivo:
-            for linha in arquivo:
+        for item in self.tabela.get_children():
+            self.tabela.delete(item)
+        if not ARQ_LOG.exists():
+            return
+        with ARQ_LOG.open("r", encoding="utf-8") as f:
+            for linha in f:
                 try:
                     evento = json.loads(linha)
                 except json.JSONDecodeError:
                     continue
-                self.grid_entradas.insert("", tk.END, values=(evento.get("ts", ""), evento.get("tipo", ""), evento.get("cracha", ""), evento.get("id", ""), ""))
+                self.tabela.insert(
+                    "",
+                    tk.END,
+                    values=(evento.get("ts", ""), evento.get("tipo", ""), evento.get("cracha", ""), evento.get("id", ""))
+                )
 
-# De fato, aonde é feito a janela e a junção das outras funções para funcionar o sistema
+# Interface inteira para aplicação
 class Aplicacao(ttk.Window):
+    # Tela inicial com dimensões iniciais
     def __init__(self):
         super().__init__(themename="superhero")
-        self.title("Controle de Acesso - Enxuto"); self.geometry("1000x620")
-        _ = carregar_json(ARQUIVO_USUARIOS, {"versao": 1, "usuarios": []}); _ = carregar_json(ARQUIVO_SUBSTANCIAS, {"versao": 1, "substancias": []})
-        if not ARQUIVO_ENTRADAS.exists(): ARQUIVO_ENTRADAS.touch()
+        self.title("Controle de Acesso - Simples")
+        self.geometry("1000x620")
+        _ = ler_json(ARQ_USUARIOS, {"versao": 1, "usuarios": []})
+        _ = ler_json(ARQ_SUBSTANCIAS, {"versao": 1, "substancias": []})
+        if not ARQ_LOG.exists():
+            ARQ_LOG.touch()
         self._mostrar_login()
 
-    def _limpar_janela(self):
-        for widget in self.winfo_children(): widget.destroy()
-
+    def _limpar(self):
+        for widget in self.winfo_children():
+            widget.destroy()
+    # Tela de login
     def _mostrar_login(self):
-        self._limpar_janela(); TelaLogin(self, callback_autenticado=self._apos_login)
-
-    def _apos_login(self, usuario_autenticado):
-        self._limpar_janela()
+        self._limpar()
+        TelaLogin(self, ao_autenticar=self._apos_login)
+    # Mostrar partes do admin ou do usuario normal
+    def _apos_login(self, usuario):
+        self._limpar()
         abas = ttk.Notebook(self); abas.pack(fill=BOTH, expand=YES, padx=10, pady=10)
-        if usuario_autenticado["papel"] == "admin":
-            abas.add(TelaSubstanciasAdmin(abas), text="Substâncias"); abas.add(TelaUsuarios(abas), text="Usuários"); abas.add(TelaEntradas(abas), text="Entradas")
+        if usuario["papel"] == "admin":
+            abas.add(TelaSubstanciasAdmin(abas), text="Substâncias")
+            abas.add(TelaUsuarios(abas), text="Usuários")
+            abas.add(TelaEntradas(abas), text="Entradas")
         else:
             abas.add(TelaSubstanciasLeitura(abas), text="Substâncias")
         barra = ttk.Frame(self); barra.pack(fill=X, padx=10, pady=(0, 10))
-        ttk.Label(barra, text=f"Logado: {usuario_autenticado['nome']} ({usuario_autenticado['papel']})").pack(side=LEFT)
-        ttk.Button(barra, text="Sair", bootstyle=DANGER, command=lambda: self._fazer_logout(usuario_autenticado)).pack(side=RIGHT)
-
-    def _fazer_logout(self, usuario_autenticado):
-        registrar_evento({"ts": timestamp_atual(), "tipo": "logout", "cracha": usuario_autenticado["cracha"], "resultado": "saida"})
+        ttk.Label(barra, text=f"Logado: {usuario['nome']} ({usuario['papel']})").pack(side=LEFT)
+        ttk.Button(barra, text="Sair", bootstyle=DANGER, command=lambda: self._fazer_logout(usuario)).pack(side=RIGHT)
+    # Para logica de entradas e saidas
+    def _fazer_logout(self, usuario):
+        registrar_log({"ts": agora(), "tipo": "logout", "cracha": usuario["cracha"], "resultado": "saida"})
         self._mostrar_login()
-
+# Para definitivamente rodar o código
 if __name__ == "__main__":
     Aplicacao().mainloop()
